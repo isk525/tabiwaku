@@ -9,58 +9,66 @@
 </head>
 <body>
   <header class="site-header">
-    <h1>✈️ 旅わく</h1>
+    <button id="homeLogo" class="brand-button" type="button" aria-label="旅一覧へ">✈️ 旅わく</button>
     <p>出発前から旅は始まっている。</p>
   </header>
 
-  <nav class="mobile-tabs" aria-label="画面切り替え">
+  <nav id="mobileTabs" class="mobile-tabs" aria-label="画面切り替え" hidden>
     <button type="button" class="tab-button active" data-view="edit">旅を編集</button>
     <button type="button" class="tab-button" data-view="preview">しおりを見る</button>
   </nav>
 
-  <main class="app-layout">
+  <main id="homeView" class="home-view">
+    <section class="home-hero">
+      <div><p class="eyebrow">MY TRIPS</p><h1>旅の予定</h1><p>次の旅も、思い出の旅もここから。</p></div>
+      <button id="newTripButton" type="button" class="button button-primary">＋ 新しい旅</button>
+    </section>
+    <section id="tripList" class="trip-list" aria-label="旅一覧"></section>
+    <div id="emptyTrips" class="empty-state" hidden><div>🧳</div><h2>まだ旅がありません</h2><p>「新しい旅」から、最初のしおりを作りましょう。</p></div>
+  </main>
+
+  <main id="appView" class="app-layout" hidden>
     <section id="editPanel" class="panel editor-card active" aria-labelledby="editorTitle">
       <div class="section-heading">
-        <div>
-          <p class="eyebrow">TRIP EDITOR</p>
-          <h2 id="editorTitle">旅の編集</h2>
-        </div>
+        <div><p class="eyebrow">TRIP EDITOR</p><h2 id="editorTitle">旅の編集</h2></div>
         <span id="saveStatus" class="save-status" aria-live="polite">自動保存</span>
       </div>
-
       <div class="basic-fields">
-        <label for="tripTitle">旅の名前</label>
-        <input type="text" id="tripTitle" placeholder="例：岡山・倉敷の週末旅行">
-        <label for="tripDate">出発日</label>
-        <input type="date" id="tripDate">
+        <label for="tripTitle">旅の名前</label><input type="text" id="tripTitle" placeholder="例：岡山・倉敷の週末旅行">
+        <label for="tripDate">出発日</label><input type="date" id="tripDate">
       </div>
-
       <div class="schedule-heading">
-        <div>
-          <h3>行程</h3>
-          <p>予定追加時は、直前の予定から30分後を自動設定します。</p>
-        </div>
+        <div><h3>行程</h3><p>予定追加時は、直前の予定から30分後を設定します。</p></div>
         <button type="button" id="addDayButton" class="button button-secondary">＋ 日程</button>
       </div>
-
       <div id="daysEditor" class="days-editor"></div>
+      <div class="editor-footer">
+        <button id="deleteTripButton" type="button" class="button button-danger">この旅を削除</button>
+      </div>
     </section>
 
     <section id="previewPanel" class="panel preview-card" aria-labelledby="previewTitle">
-      <p class="eyebrow">TRIP PREVIEW</p>
-      <div class="preview-header">
-        <h2 id="previewTitle">旅行名未設定</h2>
-        <p id="countdown" class="countdown"></p>
-        <p id="previewDate" class="preview-date"></p>
+      <div class="preview-toolbar">
+        <p class="eyebrow">TRIP PREVIEW</p>
+        <div class="share-actions">
+          <button id="copyShareButton" type="button" class="button share-copy">URLをコピー</button>
+          <button id="lineShareButton" type="button" class="button line-button">LINEで送る</button>
+        </div>
       </div>
-      <div id="emptyPreview" class="empty-preview">
-        <div class="empty-icon">🧳</div>
-        <p>予定を追加すると、ここに旅のしおりが表示されます。</p>
-      </div>
+      <div class="preview-header"><h2 id="previewTitle">旅行名未設定</h2><p id="countdown" class="countdown"></p><p id="previewDate" class="preview-date"></p></div>
+      <div id="emptyPreview" class="empty-preview"><div class="empty-icon">🧳</div><p>予定を追加すると、ここに旅のしおりが表示されます。</p></div>
       <div id="timeline" class="timeline"></div>
     </section>
   </main>
 
+  <main id="sharedView" class="shared-view" hidden>
+    <section class="shared-card">
+      <div class="shared-banner"><span>共有された旅のしおり</span><button id="saveSharedButton" type="button" class="button button-secondary">自分の旅に保存</button></div>
+      <div class="preview-header"><h1 id="sharedTitle"></h1><p id="sharedCountdown" class="countdown"></p><p id="sharedDate" class="preview-date"></p></div>
+      <div id="sharedTimeline" class="timeline"></div>
+    </section>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="script.js"></script>
 </body>
 </html>
