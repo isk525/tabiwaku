@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旅わく</title>
+    style.css
+</head>
+<body>
+
+    <header>
+        <h1>✈️ 旅わく</h1>
+        <p>出発前から旅は始まっている。</p>
+    </header>
+
+    <main class="container">
+
+        <section class="editor">
+            <h2>旅の編集</h2>
+
+            <label>旅の名前</label>
+            <input
+                type="text"
+                id="tripTitle"
+                placeholder="北海道旅行"
+            >
+
+            <label>出発日</label>
+            <input
+                type="date"
+                id="tripDate"
+            >
+
+            <label>行程</label>
+            <textarea
+                id="scheduleText"
+                rows="12"
+                placeholder="07:00 松山駅集合
+09:30 松山空港
+11:00 新千歳空港
+12:00 小樽運河
+18:00 ホテル"
+            ></textarea>
+        </section>
+
+        <section class="preview">
+
+            <div class="trip-header">
+                <h2 id="previewTitle">
+                    旅行名未設定
+                </h2>
+
+                <div id="countdown"></div>
+
+                <div id="previewDate"></div>
+            </div>
+
+            <div id="timeline"></div>
+
+        </section>
+
+    </main>
+
+    script.jsscript>
+
+</body>
+</html>
