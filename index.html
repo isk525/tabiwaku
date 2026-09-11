@@ -1,67 +1,53 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>旅わく</title>
-    style.css
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f97316">
+  <title>旅わく</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <header class="site-header">
+    <h1>✈️ 旅わく</h1>
+    <p>出発前から旅は始まっている。</p>
+  </header>
 
-    <header>
-        <h1>✈️ 旅わく</h1>
-        <p>出発前から旅は始まっている。</p>
-    </header>
+  <main class="app-layout">
+    <section class="editor-card" aria-labelledby="editorTitle">
+      <div class="section-heading">
+        <div><p class="eyebrow">TRIP EDITOR</p><h2 id="editorTitle">旅の編集</h2></div>
+        <span id="saveStatus" class="save-status" aria-live="polite">自動保存</span>
+      </div>
 
-    <main class="container">
+      <div class="basic-fields">
+        <label for="tripTitle">旅の名前</label>
+        <input type="text" id="tripTitle" placeholder="例：岡山・倉敷の週末旅行">
+        <label for="tripDate">出発日</label>
+        <input type="date" id="tripDate">
+      </div>
 
-        <section class="editor">
-            <h2>旅の編集</h2>
+      <div class="schedule-heading">
+        <div><h3>行程</h3><p>種別、時刻、目的地や予定を入力してください。</p></div>
+        <button type="button" id="addDayButton" class="button button-secondary">＋ 日程を追加</button>
+      </div>
+      <div id="daysEditor" class="days-editor"></div>
+    </section>
 
-            <label>旅の名前</label>
-            <input
-                type="text"
-                id="tripTitle"
-                placeholder="北海道旅行"
-            >
-
-            <label>出発日</label>
-            <input
-                type="date"
-                id="tripDate"
-            >
-
-            <label>行程</label>
-            <textarea
-                id="scheduleText"
-                rows="12"
-                placeholder="07:00 松山駅集合
-09:30 松山空港
-11:00 新千歳空港
-12:00 小樽運河
-18:00 ホテル"
-            ></textarea>
-        </section>
-
-        <section class="preview">
-
-            <div class="trip-header">
-                <h2 id="previewTitle">
-                    旅行名未設定
-                </h2>
-
-                <div id="countdown"></div>
-
-                <div id="previewDate"></div>
-            </div>
-
-            <div id="timeline"></div>
-
-        </section>
-
-    </main>
-
-    script.jsscript>
-
+    <section class="preview-card" aria-labelledby="previewTitle">
+      <p class="eyebrow">TRIP PREVIEW</p>
+      <div class="preview-header">
+        <h2 id="previewTitle">旅行名未設定</h2>
+        <p id="countdown" class="countdown"></p>
+        <p id="previewDate" class="preview-date"></p>
+      </div>
+      <div id="emptyPreview" class="empty-preview">
+        <div class="empty-icon">🧳</div>
+        <p>予定を追加すると、ここに旅のしおりが表示されます。</p>
+      </div>
+      <div id="timeline" class="timeline"></div>
+    </section>
+  </main>
+  <script src="script.js"></script>
 </body>
 </html>
