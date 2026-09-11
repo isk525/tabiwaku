@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f97316">
   <title>旅わく</title>
   <link rel="stylesheet" href="style.css">
@@ -13,10 +13,18 @@
     <p>出発前から旅は始まっている。</p>
   </header>
 
+  <nav class="mobile-tabs" aria-label="画面切り替え">
+    <button type="button" class="tab-button active" data-view="edit">旅を編集</button>
+    <button type="button" class="tab-button" data-view="preview">しおりを見る</button>
+  </nav>
+
   <main class="app-layout">
-    <section class="editor-card" aria-labelledby="editorTitle">
+    <section id="editPanel" class="panel editor-card active" aria-labelledby="editorTitle">
       <div class="section-heading">
-        <div><p class="eyebrow">TRIP EDITOR</p><h2 id="editorTitle">旅の編集</h2></div>
+        <div>
+          <p class="eyebrow">TRIP EDITOR</p>
+          <h2 id="editorTitle">旅の編集</h2>
+        </div>
         <span id="saveStatus" class="save-status" aria-live="polite">自動保存</span>
       </div>
 
@@ -28,13 +36,17 @@
       </div>
 
       <div class="schedule-heading">
-        <div><h3>行程</h3><p>種別、時刻、目的地や予定を入力してください。</p></div>
+        <div>
+          <h3>行程</h3>
+          <p>予定は1件ずつカードで追加できます。</p>
+        </div>
         <button type="button" id="addDayButton" class="button button-secondary">＋ 日程を追加</button>
       </div>
+
       <div id="daysEditor" class="days-editor"></div>
     </section>
 
-    <section class="preview-card" aria-labelledby="previewTitle">
+    <section id="previewPanel" class="panel preview-card" aria-labelledby="previewTitle">
       <p class="eyebrow">TRIP PREVIEW</p>
       <div class="preview-header">
         <h2 id="previewTitle">旅行名未設定</h2>
@@ -48,6 +60,7 @@
       <div id="timeline" class="timeline"></div>
     </section>
   </main>
+
   <script src="script.js"></script>
 </body>
 </html>
