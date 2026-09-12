@@ -1,0 +1,544 @@
+﻿//+------------------------------------------------------------------+
+//|                    Scalping_USDJPY_Special_v1.1.mq4              |
+//|      USDJPY scalping indicator: reversal + trend-following       |
+//+------------------------------------------------------------------+
+#property copyright "Custom Indicator"
+#property link      ""
+#property version   "1.10"
+#property strict
+#property indicator_chart_window
+#property indicator_buffers 6
+#property indicator_color1 clrLime          // Reversal buy
+#property indicator_color2 clrRed           // Reversal sell
+#property indicator_color3 clrDeepSkyBlue   // Trend buy
+#property indicator_color4 clrOrange        // Trend sell
+#property indicator_color5 clrGray          // Buy caution
+#property indicator_color6 clrDarkGray      // Sell caution
+#property indicator_width1 2
+#property indicator_width2 2
+#property indicator_width3 2
+#property indicator_width4 2
+#property indicator_width5 1
+#property indicator_width6 1
+
+//--- Range / trend determination
+input group "=== Range / Trend (ADX + ATR) ==="
+input int             ADXPeriod                 = 14;
+input double          ADXRangeLevel             = 18.0;
+input bool            FilterTrendInRange        = true;
+input bool            UseATRTrendFilter         = true;
+input int             ATRAveragePeriod          = 20;
+
+//--- Reversal rapid-movement avoidance
+input group "=== Reversal Rapid-Movement Filter ==="
+input bool            UseBigCandleFilter        = true;
+input double          BigCandleATRMultiplier    = 2.2;
+input int             ATRPeriod                 = 14;
+input bool            UseVolatilityFilter       = true;
+input double          MaxReverseATRMultiplier   = 1.8;
+input bool            UseReversalConfirmFilter  = true;
+input double          MinWickConfirmRatio       = 0.2;
+
+//--- False top / bottom avoidance
+input group "=== False Top / Bottom Filter ==="
+input bool            UseHighLowBreakFilter     = true;
+input int             HighLowLookbackBars       = 5;
+input bool            UseWickFilter             = true;
+input double          MaxWickRatio              = 0.45;
+
+//--- Trend-following false-signal avoidance
+input group "=== Trend Signal Filters ==="
+input bool            UseCounterMomentumFilter  = true;
+input double          CounterMomentumATRMult    = 1.1;
+input bool            UseSRLineFilter           = true;
+input int             SRLookbackBars            = 15;
+input double          SRBufferPips              = 1.5;
+input bool            UseEMADistanceFilter      = true;
+input double          MaxEMADistancePips        = 5.0;
+
+//--- Higher timeframe
+input group "=== Higher Timeframe Trend Filter ==="
+input ENUM_TIMEFRAMES HigherTimeframe           = PERIOD_M15;
+input int             HigherEmaPeriod           = 20;
+input bool            UseReversalTrendFilter    = false;
+
+//--- EMA / Bollinger Bands / RSI
+input group "=== EMA / Bollinger Bands / RSI ==="
+input int             ShortEmaPeriod            = 20;
+input int             LongEmaPeriod             = 50;
+input double          BBDeviation               = 2.0;
+input int             BBPeriod                  = 20;
+input int             RSIShortPeriod            = 9;
+input int             RSILongPeriod             = 14;
+input double          RSIUpperLevel             = 70.0;
+input double          RSILowerLevel             = 30.0;
+input double          RSITrendBuyLevel          = 55.0;
+input double          RSITrendSellLevel         = 45.0;
+
+//--- Signal / alert
+input group "=== Signal / Alert ==="
+input bool            UseClosedBarSignal        = true;
+input bool            UseAlert                  = true;
+
+//--- Indicator buffers
+double ReversalBuyBuffer[];
+double ReversalSellBuffer[];
+double TrendBuyBuffer[];
+double TrendSellBuffer[];
+double DangerBuyBuffer[];
+double DangerSellBuffer[];
+
+string LABEL_NAME = "MarketStateLabelUSDJPY";
+
+//+------------------------------------------------------------------+
+//| Average ATR from the specified shift                             |
+//+------------------------------------------------------------------+
+double GetATRAverage(const int startShift, const int count)
+{
+   if(count <= 0) return(0.0);
+
+   double total = 0.0;
+   int validCount = 0;
+
+   for(int j = 0; j < count; j++)
+   {
+      double value = iATR(Symbol(), PERIOD_CURRENT, ATRPeriod, startShift + j);
+      if(value > 0.0)
+      {
+         total += value;
+         validCount++;
+      }
+   }
+
+   if(validCount == 0) return(0.0);
+   return(total / validCount);
+}
+
+//+------------------------------------------------------------------+
+//| Pip size for 3/5-digit brokers                                   |
+//+------------------------------------------------------------------+
+double GetPipUnit()
+{
+   return((Digits == 3 || Digits == 5) ? Point * 10.0 : Point);
+}
+
+//+------------------------------------------------------------------+
+//| Initialization                                                   |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+   SetIndexBuffer(0, ReversalBuyBuffer);
+   SetIndexStyle(0, DRAW_ARROW);
+   SetIndexArrow(0, 233);
+   SetIndexEmptyValue(0, EMPTY_VALUE);
+   SetIndexLabel(0, "Reversal Buy");
+
+   SetIndexBuffer(1, ReversalSellBuffer);
+   SetIndexStyle(1, DRAW_ARROW);
+   SetIndexArrow(1, 234);
+   SetIndexEmptyValue(1, EMPTY_VALUE);
+   SetIndexLabel(1, "Reversal Sell");
+
+   SetIndexBuffer(2, TrendBuyBuffer);
+   SetIndexStyle(2, DRAW_ARROW);
+   SetIndexArrow(2, 233);
+   SetIndexEmptyValue(2, EMPTY_VALUE);
+   SetIndexLabel(2, "Trend Buy");
+
+   SetIndexBuffer(3, TrendSellBuffer);
+   SetIndexStyle(3, DRAW_ARROW);
+   SetIndexArrow(3, 234);
+   SetIndexEmptyValue(3, EMPTY_VALUE);
+   SetIndexLabel(3, "Trend Sell");
+
+   SetIndexBuffer(4, DangerBuyBuffer);
+   SetIndexStyle(4, DRAW_ARROW);
+   SetIndexArrow(4, 201);
+   SetIndexEmptyValue(4, EMPTY_VALUE);
+   SetIndexLabel(4, "Buy Caution");
+
+   SetIndexBuffer(5, DangerSellBuffer);
+   SetIndexStyle(5, DRAW_ARROW);
+   SetIndexArrow(5, 201);
+   SetIndexEmptyValue(5, EMPTY_VALUE);
+   SetIndexLabel(5, "Sell Caution");
+
+   ArraySetAsSeries(ReversalBuyBuffer, true);
+   ArraySetAsSeries(ReversalSellBuffer, true);
+   ArraySetAsSeries(TrendBuyBuffer, true);
+   ArraySetAsSeries(TrendSellBuffer, true);
+   ArraySetAsSeries(DangerBuyBuffer, true);
+   ArraySetAsSeries(DangerSellBuffer, true);
+
+   IndicatorShortName("USDJPY Special Scalping v1.1");
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Deinitialization                                                 |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+   ObjectDelete(0, LABEL_NAME);
+}
+
+//+------------------------------------------------------------------+
+//| Main calculation                                                 |
+//+------------------------------------------------------------------+
+int OnCalculate(const int rates_total,
+                const int prev_calculated,
+                const datetime &time[],
+                const double &open[],
+                const double &high[],
+                const double &low[],
+                const double &close[],
+                const long &tick_volume[],
+                const long &volume[],
+                const int &spread[])
+{
+   int requiredBars = MathMax(LongEmaPeriod,
+                      MathMax(BBPeriod,
+                      MathMax(SRLookbackBars + 2,
+                      MathMax(HighLowLookbackBars + 2,
+                              ATRPeriod + ATRAveragePeriod + 2))));
+
+   if(rates_total <= requiredBars)
+      return(0);
+
+   // Recalculate the latest bars while keeping array access in range.
+   int maxShift = rates_total - requiredBars;
+   int limit;
+
+   if(prev_calculated <= 0)
+   {
+      ArrayInitialize(ReversalBuyBuffer, EMPTY_VALUE);
+      ArrayInitialize(ReversalSellBuffer, EMPTY_VALUE);
+      ArrayInitialize(TrendBuyBuffer, EMPTY_VALUE);
+      ArrayInitialize(TrendSellBuffer, EMPTY_VALUE);
+      ArrayInitialize(DangerBuyBuffer, EMPTY_VALUE);
+      ArrayInitialize(DangerSellBuffer, EMPTY_VALUE);
+      limit = maxShift;
+   }
+   else
+   {
+      limit = rates_total - prev_calculated + 2;
+      if(limit > maxShift) limit = maxShift;
+   }
+
+   // Current market-state label uses both ADX and ATR when enabled.
+   double currentADX = iADX(Symbol(), PERIOD_CURRENT, ADXPeriod,
+                            PRICE_CLOSE, MODE_MAIN, 0);
+   double currentATR = iATR(Symbol(), PERIOD_CURRENT, ATRPeriod, 0);
+   double currentATRAvg = GetATRAverage(1, ATRAveragePeriod);
+
+   bool currentIsRange = (currentADX < ADXRangeLevel);
+   if(UseATRTrendFilter && currentATRAvg > 0.0)
+      currentIsRange = currentIsRange && (currentATR < currentATRAvg);
+
+   string stateText = StringFormat("[USD/JPY] %s (ADX: %.1f)",
+                                   currentIsRange ? "Range" : "Trend",
+                                   currentADX);
+
+   if(ObjectFind(0, LABEL_NAME) < 0)
+   {
+      ObjectCreate(0, LABEL_NAME, OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, LABEL_NAME, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, LABEL_NAME, OBJPROP_XDISTANCE, 10);
+      ObjectSetInteger(0, LABEL_NAME, OBJPROP_YDISTANCE, 15);
+      ObjectSetInteger(0, LABEL_NAME, OBJPROP_FONTSIZE, 10);
+   }
+
+   ObjectSetString(0, LABEL_NAME, OBJPROP_TEXT, stateText);
+   ObjectSetInteger(0, LABEL_NAME, OBJPROP_COLOR,
+                    currentIsRange ? clrYellow : clrDeepSkyBlue);
+
+   double pipsUnit = GetPipUnit();
+   int newestShift = UseClosedBarSignal ? 1 : 0;
+
+   for(int i = limit; i >= newestShift; i--)
+   {
+      ReversalBuyBuffer[i]  = EMPTY_VALUE;
+      ReversalSellBuffer[i] = EMPTY_VALUE;
+      TrendBuyBuffer[i]     = EMPTY_VALUE;
+      TrendSellBuffer[i]    = EMPTY_VALUE;
+      DangerBuyBuffer[i]    = EMPTY_VALUE;
+      DangerSellBuffer[i]   = EMPTY_VALUE;
+
+      int htfShift = iBarShift(Symbol(), HigherTimeframe, time[i], false);
+      if(htfShift < 0) continue;
+
+      double htfEMA   = iMA(Symbol(), HigherTimeframe, HigherEmaPeriod,
+                            0, MODE_EMA, PRICE_CLOSE, htfShift);
+      double emaShort = iMA(Symbol(), PERIOD_CURRENT, ShortEmaPeriod,
+                            0, MODE_EMA, PRICE_CLOSE, i);
+      double emaLong  = iMA(Symbol(), PERIOD_CURRENT, LongEmaPeriod,
+                            0, MODE_EMA, PRICE_CLOSE, i);
+      double bbUpper2 = iBands(Symbol(), PERIOD_CURRENT, BBPeriod,
+                              BBDeviation, 0, PRICE_CLOSE, MODE_UPPER, i);
+      double bbLower2 = iBands(Symbol(), PERIOD_CURRENT, BBPeriod,
+                              BBDeviation, 0, PRICE_CLOSE, MODE_LOWER, i);
+      double bbUpper1 = iBands(Symbol(), PERIOD_CURRENT, BBPeriod,
+                              1.0, 0, PRICE_CLOSE, MODE_UPPER, i);
+      double bbLower1 = iBands(Symbol(), PERIOD_CURRENT, BBPeriod,
+                              1.0, 0, PRICE_CLOSE, MODE_LOWER, i);
+      double rsiShort = iRSI(Symbol(), PERIOD_CURRENT, RSIShortPeriod,
+                             PRICE_CLOSE, i);
+      double rsiLong  = iRSI(Symbol(), PERIOD_CURRENT, RSILongPeriod,
+                             PRICE_CLOSE, i);
+      double adxValue = iADX(Symbol(), PERIOD_CURRENT, ADXPeriod,
+                             PRICE_CLOSE, MODE_MAIN, i);
+      double atrNow   = iATR(Symbol(), PERIOD_CURRENT, ATRPeriod, i);
+      double atrAvg   = GetATRAverage(i + 1, ATRAveragePeriod);
+
+      bool isRangeBar = (adxValue < ADXRangeLevel);
+      if(UseATRTrendFilter && atrAvg > 0.0)
+         isRangeBar = isRangeBar && (atrNow < atrAvg);
+
+      bool prevRevBuy    = (i + 1 < rates_total) &&
+                           (ReversalBuyBuffer[i + 1] != EMPTY_VALUE);
+      bool prevRevSell   = (i + 1 < rates_total) &&
+                           (ReversalSellBuffer[i + 1] != EMPTY_VALUE);
+      bool prevTrendBuy  = (i + 1 < rates_total) &&
+                           (TrendBuyBuffer[i + 1] != EMPTY_VALUE);
+      bool prevTrendSell = (i + 1 < rates_total) &&
+                           (TrendSellBuffer[i + 1] != EMPTY_VALUE);
+
+      //--- Reversal filters
+      bool bigCandlePass = true;
+      if(UseBigCandleFilter && i + 1 < rates_total)
+      {
+         double previousATR = iATR(Symbol(), PERIOD_CURRENT, ATRPeriod, i + 1);
+         if(previousATR > 0.0 &&
+            (high[i + 1] - low[i + 1]) >
+            previousATR * BigCandleATRMultiplier)
+         {
+            bigCandlePass = false;
+         }
+      }
+
+      bool volatilityPass = true;
+      if(UseVolatilityFilter && atrAvg > 0.0 &&
+         atrNow > atrAvg * MaxReverseATRMultiplier)
+      {
+         volatilityPass = false;
+      }
+
+      bool revConfirmBuyPass = true;
+      bool revConfirmSellPass = true;
+
+      if(UseReversalConfirmFilter)
+      {
+         double candleLength = high[i] - low[i];
+         if(candleLength > 0.0)
+         {
+            double lowerWick = MathMin(open[i], close[i]) - low[i];
+            double upperWick = high[i] - MathMax(open[i], close[i]);
+
+            if(close[i] < open[i] &&
+               (lowerWick / candleLength) < MinWickConfirmRatio)
+               revConfirmBuyPass = false;
+
+            if(close[i] > open[i] &&
+               (upperWick / candleLength) < MinWickConfirmRatio)
+               revConfirmSellPass = false;
+         }
+      }
+
+      bool highLowBuyPass = true;
+      bool highLowSellPass = true;
+
+      if(UseHighLowBreakFilter)
+      {
+         int lowestShift = iLowest(Symbol(), PERIOD_CURRENT, MODE_LOW,
+                                   HighLowLookbackBars, i + 1);
+         int highestShift = iHighest(Symbol(), PERIOD_CURRENT, MODE_HIGH,
+                                     HighLowLookbackBars, i + 1);
+
+         if(lowestShift >= 0 && low[i] < iLow(Symbol(), PERIOD_CURRENT, lowestShift))
+            highLowBuyPass = false;
+
+         if(highestShift >= 0 && high[i] > iHigh(Symbol(), PERIOD_CURRENT, highestShift))
+            highLowSellPass = false;
+      }
+
+      //--- Reversal signals
+      bool reversalBuyCondition =
+         (!UseReversalTrendFilter || close[i] > htfEMA) &&
+         low[i] <= bbLower2 &&
+         rsiShort <= RSILowerLevel &&
+         rsiLong <= RSILowerLevel &&
+         !prevRevBuy;
+
+      if(reversalBuyCondition)
+      {
+         if(bigCandlePass && revConfirmBuyPass &&
+            volatilityPass && highLowBuyPass)
+            ReversalBuyBuffer[i] = low[i] - (10.0 * Point);
+         else
+            DangerBuyBuffer[i] = low[i] - (10.0 * Point);
+      }
+
+      bool reversalSellCondition =
+         (!UseReversalTrendFilter || close[i] < htfEMA) &&
+         high[i] >= bbUpper2 &&
+         rsiShort >= RSIUpperLevel &&
+         rsiLong >= RSIUpperLevel &&
+         !prevRevSell;
+
+      if(reversalSellCondition)
+      {
+         if(bigCandlePass && revConfirmSellPass &&
+            volatilityPass && highLowSellPass)
+            ReversalSellBuffer[i] = high[i] + (10.0 * Point);
+         else
+            DangerSellBuffer[i] = high[i] + (10.0 * Point);
+      }
+
+      //--- Trend-following filters
+      bool counterPassBuy = true;
+      bool counterPassSell = true;
+
+      if(UseCounterMomentumFilter && i + 1 < rates_total)
+      {
+         double previousATR = iATR(Symbol(), PERIOD_CURRENT, ATRPeriod, i + 1);
+         double previousBody = MathAbs(close[i + 1] - open[i + 1]);
+
+         if(close[i + 1] > open[i + 1] &&
+            previousBody > previousATR * CounterMomentumATRMult)
+            counterPassSell = false;
+
+         if(close[i + 1] < open[i + 1] &&
+            previousBody > previousATR * CounterMomentumATRMult)
+            counterPassBuy = false;
+      }
+
+      bool wickBuyPass = true;
+      bool wickSellPass = true;
+
+      if(UseWickFilter)
+      {
+         double candleLength = high[i] - low[i];
+         if(candleLength > 0.0)
+         {
+            double upperWickRatio =
+               (high[i] - MathMax(open[i], close[i])) / candleLength;
+            double lowerWickRatio =
+               (MathMin(open[i], close[i]) - low[i]) / candleLength;
+
+            if(upperWickRatio > MaxWickRatio) wickBuyPass = false;
+            if(lowerWickRatio > MaxWickRatio) wickSellPass = false;
+         }
+      }
+
+      bool srBuyPass = true;
+      bool srSellPass = true;
+
+      if(UseSRLineFilter)
+      {
+         int supportShift = iLowest(Symbol(), PERIOD_CURRENT, MODE_LOW,
+                                    SRLookbackBars, i + 1);
+         int resistanceShift = iHighest(Symbol(), PERIOD_CURRENT, MODE_HIGH,
+                                        SRLookbackBars, i + 1);
+
+         if(supportShift >= 0)
+         {
+            double recentSupport = iLow(Symbol(), PERIOD_CURRENT, supportShift);
+            if(MathAbs(close[i] - recentSupport) / pipsUnit <= SRBufferPips)
+               srSellPass = false;
+         }
+
+         if(resistanceShift >= 0)
+         {
+            double recentResistance = iHigh(Symbol(), PERIOD_CURRENT, resistanceShift);
+            if(MathAbs(recentResistance - close[i]) / pipsUnit <= SRBufferPips)
+               srBuyPass = false;
+         }
+      }
+
+      bool emaDistPass = true;
+      if(UseEMADistanceFilter &&
+         (MathAbs(close[i] - emaShort) / pipsUnit) > MaxEMADistancePips)
+      {
+         emaDistPass = false;
+      }
+
+      //--- Trend-following signals
+      bool allowTrendSignal = !FilterTrendInRange || !isRangeBar;
+
+      bool trendBuyCondition =
+         allowTrendSignal &&
+         emaShort > emaLong &&
+         close[i] > htfEMA &&
+         close[i] >= bbUpper1 &&
+         rsiShort >= RSITrendBuyLevel &&
+         rsiLong >= RSITrendBuyLevel &&
+         !prevTrendBuy;
+
+      if(trendBuyCondition)
+      {
+         if(counterPassBuy && wickBuyPass && srBuyPass && emaDistPass)
+            TrendBuyBuffer[i] = low[i] - (15.0 * Point);
+         else
+            DangerBuyBuffer[i] = low[i] - (15.0 * Point);
+      }
+
+      bool trendSellCondition =
+         allowTrendSignal &&
+         emaShort < emaLong &&
+         close[i] < htfEMA &&
+         close[i] <= bbLower1 &&
+         rsiShort <= RSITrendSellLevel &&
+         rsiLong <= RSITrendSellLevel &&
+         !prevTrendSell;
+
+      if(trendSellCondition)
+      {
+         if(counterPassSell && wickSellPass && srSellPass && emaDistPass)
+            TrendSellBuffer[i] = high[i] + (15.0 * Point);
+         else
+            DangerSellBuffer[i] = high[i] + (15.0 * Point);
+      }
+   }
+
+   // Clear the unfinished bar when closed-bar mode is selected.
+   if(UseClosedBarSignal)
+   {
+      ReversalBuyBuffer[0]  = EMPTY_VALUE;
+      ReversalSellBuffer[0] = EMPTY_VALUE;
+      TrendBuyBuffer[0]     = EMPTY_VALUE;
+      TrendSellBuffer[0]    = EMPTY_VALUE;
+      DangerBuyBuffer[0]    = EMPTY_VALUE;
+      DangerSellBuffer[0]   = EMPTY_VALUE;
+   }
+
+   // Alert once per signal bar.
+   if(UseAlert)
+   {
+      int signalShift = UseClosedBarSignal ? 1 : 0;
+      static datetime lastAlertBar = 0;
+
+      if(time[signalShift] != lastAlertBar)
+      {
+         string signalName = "";
+
+         if(ReversalBuyBuffer[signalShift] != EMPTY_VALUE)
+            signalName = "Reversal BUY";
+         else if(ReversalSellBuffer[signalShift] != EMPTY_VALUE)
+            signalName = "Reversal SELL";
+         else if(TrendBuyBuffer[signalShift] != EMPTY_VALUE)
+            signalName = "Trend BUY";
+         else if(TrendSellBuffer[signalShift] != EMPTY_VALUE)
+            signalName = "Trend SELL";
+
+         if(signalName != "")
+         {
+            Alert(Symbol(), " ", IntegerToString(Period()),
+                  "min: ", signalName);
+            lastAlertBar = time[signalShift];
+         }
+      }
+   }
+
+   return(rates_total);
+}
+//+------------------------------------------------------------------+
